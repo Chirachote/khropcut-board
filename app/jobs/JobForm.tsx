@@ -3,23 +3,25 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { TECHNICIANS, JOB_TYPES, JOB_STATUSES, type Job, type JobStatus, type JobType, type Technician } from '@/lib/types'
+import { JOB_TYPES, JOB_STATUSES, type Job, type JobStatus, type JobType, type TechnicianRecord } from '@/lib/types'
 
 interface JobFormProps {
   job?: Job
+  technicians: TechnicianRecord[]
 }
 
-export default function JobForm({ job }: JobFormProps) {
+export default function JobForm({ job, technicians }: JobFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const defaultTech = technicians[0]?.name || ''
   const [form, setForm] = useState({
-    title: job?.title || '',
-    type: job?.type || 'Video Edit',
-    technician: job?.technician || 'อั้ม',
-    deadline: job?.deadline?.slice(0, 10) || '',
-    client: job?.client || '',
-    status: job?.status || 'pending',
+    title:      job?.title || '',
+    type:       job?.type || 'Video Edit',
+    technician: job?.technician || defaultTech,
+    deadline:   job?.deadline?.slice(0, 10) || '',
+    client:     job?.client || '',
+    status:     job?.status || 'pending',
   })
 
   function update(field: string, value: string) {
@@ -33,12 +35,12 @@ export default function JobForm({ job }: JobFormProps) {
 
     const supabase = createClient()
     const payload = {
-      title: form.title,
-      type: form.type as JobType,
-      technician: form.technician as Technician,
-      deadline: form.deadline || null,
-      client: form.client,
-      status: form.status as JobStatus,
+      title:      form.title,
+      type:       form.type as JobType,
+      technician: form.technician,
+      deadline:   form.deadline || null,
+      client:     form.client,
+      status:     form.status as JobStatus,
       updated_at: new Date().toISOString(),
     }
 
@@ -53,6 +55,9 @@ export default function JobForm({ job }: JobFormProps) {
     router.push('/jobs')
     router.refresh()
   }
+
+  // Color map for the selected tech
+  const selectedTech = technicians.find(t => t.name === form.technician)
 
   return (
     <form onSubmit={handleSubmit} className="pixel-border" style={{ background: '#0a1022', padding: '28px' }}>
@@ -69,7 +74,7 @@ export default function JobForm({ job }: JobFormProps) {
           />
         </div>
 
-        {/* Type + Client row */}
+        {/* Type + Client */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label style={labelStyle}>TYPE *</label>
@@ -89,13 +94,33 @@ export default function JobForm({ job }: JobFormProps) {
           </div>
         </div>
 
-        {/* Technician + Status row */}
+        {/* Technician + Status */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label style={labelStyle}>STAFF *</label>
-            <select className="pixel-select" value={form.technician} onChange={e => update('technician', e.target.value)}>
-              {TECHNICIANS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <div className="relative">
+              <select
+                className="pixel-select"
+                value={form.technician}
+                onChange={e => update('technician', e.target.value)}
+                style={{ borderColor: selectedTech ? selectedTech.color + '80' : undefined }}
+              >
+                {technicians.length === 0 && (
+                  <option value="">— No staff —</option>
+                )}
+                {technicians.map(t => (
+                  <option key={t.id} value={t.name}>{t.avatar} {t.name}</option>
+                ))}
+              </select>
+              {selectedTech && (
+                <div style={{
+                  position: 'absolute', left: 0, bottom: '-4px',
+                  height: '2px', width: '100%',
+                  background: selectedTech.color,
+                  opacity: 0.6,
+                }} />
+              )}
+            </div>
           </div>
           <div>
             <label style={labelStyle}>STATUS</label>
@@ -123,7 +148,6 @@ export default function JobForm({ job }: JobFormProps) {
           </div>
         )}
 
-        {/* Buttons */}
         <div className="flex gap-3 pt-2">
           <button
             type="submit"
@@ -148,9 +172,6 @@ export default function JobForm({ job }: JobFormProps) {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: '7px',
-  color: '#6b7db3',
-  letterSpacing: '0.1em',
-  display: 'block',
-  marginBottom: '6px',
+  fontSize: '7px', color: '#6b7db3',
+  letterSpacing: '0.1em', display: 'block', marginBottom: '6px',
 }

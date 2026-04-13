@@ -55,6 +55,12 @@ export default function Nav() {
         >
           <span>📅</span> CALENDAR
         </Link>
+        <Link
+          href="/settings"
+          className={`nav-link ${pathname === '/settings' ? 'active' : ''}`}
+        >
+          <span>⚙</span> SETTINGS
+        </Link>
       </div>
 
       {/* Actions */}

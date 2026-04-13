@@ -4,23 +4,30 @@ import { useEffect, useState } from 'react'
 import Nav from '@/components/Nav'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { STATUS_COLORS, TECH_COLORS, type Job } from '@/lib/types'
+import { STATUS_COLORS, techColorMap, type Job, type TechnicianRecord } from '@/lib/types'
 
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const MONTHS = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER']
 
 export default function CalendarPage() {
   const [jobs, setJobs] = useState<Job[]>([])
+  const [technicians, setTechnicians] = useState<TechnicianRecord[]>([])
   const [year, setYear] = useState(new Date().getFullYear())
   const [month, setMonth] = useState(new Date().getMonth())
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('jobs').select('*').neq('status', 'cancelled').then(({ data }) => {
-      if (data) setJobs(data)
+    Promise.all([
+      supabase.from('jobs').select('*').neq('status', 'cancelled'),
+      supabase.from('technicians').select('*').order('sort_order'),
+    ]).then(([{ data: jobsData }, { data: techsData }]) => {
+      if (jobsData) setJobs(jobsData)
+      if (techsData) setTechnicians(techsData)
     })
   }, [])
+
+  const colorMap = techColorMap(technicians)
 
   const firstDay = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -186,7 +193,7 @@ export default function CalendarPage() {
                   <div className="flex flex-col gap-3">
                     {selectedJobs.map(job => {
                       const sc = STATUS_COLORS[job.status]
-                      const tc = TECH_COLORS[job.technician as keyof typeof TECH_COLORS]
+                      const tc = colorMap[job.technician] || '#6b7db3'
                       return (
                         <Link key={job.id} href={`/jobs/${job.id}`} style={{ textDecoration: 'none' }}>
                           <div
@@ -227,7 +234,7 @@ export default function CalendarPage() {
                 .slice(0, 6)
                 .map(job => {
                   const sc = STATUS_COLORS[job.status]
-                  const tc = TECH_COLORS[job.technician as keyof typeof TECH_COLORS]
+                  const tc = colorMap[job.technician] || '#6b7db3'
                   return (
                     <Link key={job.id} href={`/jobs/${job.id}`} style={{ textDecoration: 'none' }}>
                       <div style={{ background: '#0a1022', border: `1px solid #1a2040`, padding: '8px 10px', cursor: 'pointer' }}>
