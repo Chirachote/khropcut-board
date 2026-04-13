@@ -3,42 +3,38 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { JOB_TYPES, JOB_STATUSES, DRAFT_LABELS, type Job, type JobStatus, type JobType, type TechnicianRecord } from '@/lib/types'
+import {
+  JOB_TYPES, JOB_STATUSES, WORKFLOW_STAGES,
+  type Job, type JobStatus, type JobType, type TechnicianRecord,
+} from '@/lib/types'
 
 interface JobFormProps {
   job?: Job
   technicians: TechnicianRecord[]
 }
 
-const DRAFT_COLORS = { d1: '#00aaff', d2: '#b06bff', d3: '#ff6b35' }
-
 export default function JobForm({ job, technicians }: JobFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [activeDraft, setActiveDraft] = useState<'d1' | 'd2' | 'd3'>('d1')
   const defaultTech = technicians[0]?.name || ''
 
   const [form, setForm] = useState({
-    title:        job?.title || '',
-    type:         job?.type || 'Short Clip',
-    technician:   job?.technician || defaultTech,
-    deadline:     job?.deadline?.slice(0, 10) || '',
-    client:       job?.client || '',
-    status:       job?.status || 'pending',
-    current_draft: String(job?.current_draft ?? 1),
-    // Draft 1
-    d1_work:   job?.d1_work?.slice(0, 10)   || '',
-    d1_send:   job?.d1_send?.slice(0, 10)   || '',
-    d1_review: job?.d1_review?.slice(0, 10) || '',
-    // Draft 2
-    d2_work:   job?.d2_work?.slice(0, 10)   || '',
-    d2_send:   job?.d2_send?.slice(0, 10)   || '',
-    d2_review: job?.d2_review?.slice(0, 10) || '',
-    // Draft 3
-    d3_work:   job?.d3_work?.slice(0, 10)   || '',
-    d3_send:   job?.d3_send?.slice(0, 10)   || '',
-    d3_review: job?.d3_review?.slice(0, 10) || '',
+    title:      job?.title      || '',
+    type:       job?.type       || 'Short Clip',
+    technician: job?.technician || defaultTech,
+    deadline:   job?.deadline?.slice(0, 10)  || '',
+    client:     job?.client     || '',
+    status:     (job?.status    || 'queued') as JobStatus,
+    // workflow dates
+    d1_work:   job?.d1_work?.slice(0,10)   || '',
+    d1_send:   job?.d1_send?.slice(0,10)   || '',
+    d1_review: job?.d1_review?.slice(0,10) || '',
+    d2_send:   job?.d2_send?.slice(0,10)   || '',
+    d2_review: job?.d2_review?.slice(0,10) || '',
+    d3_send:   job?.d3_send?.slice(0,10)   || '',
+    d3_review: job?.d3_review?.slice(0,10) || '',
+    post_date: job?.post_date?.slice(0,10) || '',
   })
 
   function update(field: string, value: string) {
@@ -52,30 +48,28 @@ export default function JobForm({ job, technicians }: JobFormProps) {
 
     const supabase = createClient()
     const payload = {
-      title:         form.title,
-      type:          form.type as JobType,
-      technician:    form.technician,
-      deadline:      form.deadline || null,
-      client:        form.client,
-      status:        form.status as JobStatus,
-      current_draft: parseInt(form.current_draft),
-      d1_work:       form.d1_work   || null,
-      d1_send:       form.d1_send   || null,
-      d1_review:     form.d1_review || null,
-      d2_work:       form.d2_work   || null,
-      d2_send:       form.d2_send   || null,
-      d2_review:     form.d2_review || null,
-      d3_work:       form.d3_work   || null,
-      d3_send:       form.d3_send   || null,
-      d3_review:     form.d3_review || null,
-      updated_at:    new Date().toISOString(),
+      title:      form.title,
+      type:       form.type as JobType,
+      technician: form.technician,
+      deadline:   form.deadline   || null,
+      client:     form.client,
+      status:     form.status,
+      d1_work:    form.d1_work    || null,
+      d1_send:    form.d1_send    || null,
+      d1_review:  form.d1_review  || null,
+      d2_send:    form.d2_send    || null,
+      d2_review:  form.d2_review  || null,
+      d3_send:    form.d3_send    || null,
+      d3_review:  form.d3_review  || null,
+      post_date:  form.post_date  || null,
+      updated_at: new Date().toISOString(),
     }
 
     if (job) {
       const { error } = await supabase.from('jobs').update(payload).eq('id', job.id)
       if (error) { setError(error.message); setLoading(false); return }
     } else {
-      const { error } = await supabase.from('jobs').insert(payload)
+      const { error } = await supabase.from('jobs').insert({ ...payload, current_draft: 1 })
       if (error) { setError(error.message); setLoading(false); return }
     }
 
@@ -84,7 +78,9 @@ export default function JobForm({ job, technicians }: JobFormProps) {
   }
 
   const selectedTech = technicians.find(t => t.name === form.technician)
-  const draftColor = DRAFT_COLORS[activeDraft]
+
+  // Count how many workflow dates are filled
+  const filledStages = WORKFLOW_STAGES.filter(s => form[s.key as keyof typeof form]).length
 
   return (
     <form onSubmit={handleSubmit} className="pixel-border" style={{ background: '#0a1022', padding: '28px' }}>
@@ -93,7 +89,13 @@ export default function JobForm({ job, technicians }: JobFormProps) {
         {/* Title */}
         <div>
           <label style={labelStyle}>JOB NAME *</label>
-          <input className="pixel-input" value={form.title} onChange={e => update('title', e.target.value)} placeholder="e.g. MV บิลลี่ - สุดท้าย" required />
+          <input
+            className="pixel-input"
+            value={form.title}
+            onChange={e => update('title', e.target.value)}
+            placeholder="e.g. MV บิลลี่ - สุดท้าย"
+            required
+          />
         </div>
 
         {/* Type + Client */}
@@ -106,11 +108,17 @@ export default function JobForm({ job, technicians }: JobFormProps) {
           </div>
           <div>
             <label style={labelStyle}>CLIENT *</label>
-            <input className="pixel-input" value={form.client} onChange={e => update('client', e.target.value)} placeholder="Client name" required />
+            <input
+              className="pixel-input"
+              value={form.client}
+              onChange={e => update('client', e.target.value)}
+              placeholder="ชื่อลูกค้า"
+              required
+            />
           </div>
         </div>
 
-        {/* Technician + Status */}
+        {/* Staff + Status */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label style={labelStyle}>STAFF *</label>
@@ -124,93 +132,123 @@ export default function JobForm({ job, technicians }: JobFormProps) {
                 {technicians.length === 0 && <option value="">— No staff —</option>}
                 {technicians.map(t => <option key={t.id} value={t.name}>{t.avatar} {t.name}</option>)}
               </select>
-              {selectedTech && <div style={{ position: 'absolute', left: 0, bottom: '-4px', height: '2px', width: '100%', background: selectedTech.color, opacity: 0.6 }} />}
+              {selectedTech && (
+                <div style={{ position: 'absolute', left: 0, bottom: '-4px', height: '2px', width: '100%', background: selectedTech.color, opacity: 0.6 }} />
+              )}
             </div>
           </div>
           <div>
             <label style={labelStyle}>STATUS</label>
-            <select className="pixel-select" value={form.status} onChange={e => update('status', e.target.value)}>
-              {JOB_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            <select className="pixel-select" value={form.status} onChange={e => update('status', e.target.value as JobStatus)}>
+              {JOB_STATUSES.map(s => (
+                <option key={s.value} value={s.value}>{s.label} — {s.labelTH}</option>
+              ))}
             </select>
           </div>
         </div>
 
-        {/* Final Deadline + Current Draft */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label style={labelStyle}>FINAL DEADLINE</label>
-            <input type="date" className="pixel-input" value={form.deadline} onChange={e => update('deadline', e.target.value)} style={{ colorScheme: 'dark' }} />
-          </div>
-          <div>
-            <label style={labelStyle}>CURRENT DRAFT</label>
-            <select className="pixel-select" value={form.current_draft} onChange={e => update('current_draft', e.target.value)}>
-              <option value="1">Draft 1</option>
-              <option value="2">Draft 2</option>
-              <option value="3">Draft 3</option>
-            </select>
-          </div>
+        {/* Final Deadline */}
+        <div style={{ maxWidth: '50%', paddingRight: '8px' }}>
+          <label style={labelStyle}>FINAL DEADLINE</label>
+          <input
+            type="date"
+            className="pixel-input"
+            value={form.deadline}
+            onChange={e => update('deadline', e.target.value)}
+            style={{ colorScheme: 'dark' }}
+          />
         </div>
 
-        {/* ── Draft Timeline ─────────────────────────── */}
-        <div style={{ border: `2px solid ${draftColor}30`, background: '#07101f' }}>
-          {/* Draft tabs */}
-          <div className="flex" style={{ borderBottom: `2px solid ${draftColor}30` }}>
-            {DRAFT_LABELS.map(d => {
-              const isActive = activeDraft === d.key
+        {/* ── Workflow Timeline ── */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <label style={{ ...labelStyle, marginBottom: 0 }}>
+              WORKFLOW TIMELINE
+            </label>
+            <span style={{ fontSize: '6px', color: '#3a4a6b' }}>
+              {filledStages}/{WORKFLOW_STAGES.length} STAGES SET
+            </span>
+          </div>
+
+          <div style={{ border: '1px solid rgba(0,170,255,0.15)', background: '#07101f' }}>
+            {/* Header */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 80px 120px',
+              padding: '7px 12px',
+              borderBottom: '1px solid rgba(0,170,255,0.1)',
+              fontSize: '6px', color: '#3a4a6b', letterSpacing: '0.1em',
+            }}>
+              <span>STAGE</span>
+              <span>PARTY</span>
+              <span>DATE</span>
+            </div>
+
+            {/* Rows */}
+            {WORKFLOW_STAGES.map((stage, i) => {
+              const val = form[stage.key as keyof typeof form] as string
+              const isProduction = stage.party === 'production'
+              const isLast = i === WORKFLOW_STAGES.length - 1
               return (
-                <button
-                  key={d.key}
-                  type="button"
-                  onClick={() => setActiveDraft(d.key as 'd1' | 'd2' | 'd3')}
+                <div
+                  key={stage.key}
                   style={{
-                    flex: 1,
-                    fontSize: '7px',
-                    padding: '8px',
-                    background: isActive ? `${d.color}15` : 'transparent',
-                    color: isActive ? d.color : '#6b7db3',
-                    border: 'none',
-                    borderBottom: isActive ? `2px solid ${d.color}` : '2px solid transparent',
-                    cursor: 'pointer',
-                    letterSpacing: '0.1em',
-                    marginBottom: '-2px',
+                    display: 'grid', gridTemplateColumns: '1fr 80px 120px',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    borderBottom: isLast ? 'none' : '1px solid rgba(0,170,255,0.06)',
+                    background: val ? `${stage.color}06` : 'transparent',
+                    transition: 'background 0.1s',
                   }}
                 >
-                  {d.label}
-                  {/* dot if has data */}
-                  {(form[`${d.key}_work` as keyof typeof form] || form[`${d.key}_send` as keyof typeof form]) && (
-                    <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: d.color, marginLeft: '5px', verticalAlign: 'middle' }} />
-                  )}
-                </button>
-              )
-            })}
-          </div>
+                  {/* Stage name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '6px', height: '6px',
+                      background: val ? stage.color : 'transparent',
+                      border: `1px solid ${stage.color}60`,
+                      flexShrink: 0,
+                    }} />
+                    <div>
+                      <div style={{ fontSize: '7px', color: val ? stage.color : '#6b7db3', letterSpacing: '0.06em' }}>
+                        {stage.label}
+                      </div>
+                      <div style={{ fontSize: '6px', color: '#3a4a6b' }}>{stage.labelTH}</div>
+                    </div>
+                  </div>
 
-          {/* Draft fields */}
-          <div style={{ padding: '14px 16px' }}>
-            {/* Note for D2/D3 */}
-            {activeDraft !== 'd1' && (
-              <div style={{ fontSize: '6px', color: '#6b7db3', marginBottom: '10px', lineHeight: 1.8 }}>
-                ⚡ การปรับแก้ — สามารถทำงานคู่ขนานได้
-              </div>
-            )}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { field: `${activeDraft}_work`   as keyof typeof form, label: 'กำหนดทำ' },
-                { field: `${activeDraft}_send`   as keyof typeof form, label: 'กำหนดส่ง' },
-                { field: `${activeDraft}_review` as keyof typeof form, label: 'ลูกค้าตรวจ' },
-              ].map(({ field, label }) => (
-                <div key={field}>
-                  <label style={{ ...labelStyle, color: draftColor }}>{label}</label>
+                  {/* Party badge */}
+                  <div>
+                    <span style={{
+                      fontSize: '5px',
+                      padding: '2px 5px',
+                      color: isProduction ? '#00aaff' : '#ff6b9d',
+                      border: `1px solid ${isProduction ? '#00aaff' : '#ff6b9d'}40`,
+                      letterSpacing: '0.08em',
+                    }}>
+                      {isProduction ? 'POST PRO' : 'CLIENT'}
+                    </span>
+                  </div>
+
+                  {/* Date input */}
                   <input
                     type="date"
-                    className="pixel-input"
-                    value={form[field] as string}
-                    onChange={e => update(field, e.target.value)}
-                    style={{ colorScheme: 'dark', fontSize: '8px', borderColor: `${draftColor}40` }}
+                    value={val}
+                    onChange={e => update(stage.key, e.target.value)}
+                    style={{
+                      background: 'transparent',
+                      border: `1px solid ${val ? stage.color + '50' : 'rgba(0,170,255,0.15)'}`,
+                      color: val ? stage.color : '#6b7db3',
+                      fontSize: '7px',
+                      padding: '4px 6px',
+                      colorScheme: 'dark',
+                      width: '100%',
+                      outline: 'none',
+                      fontFamily: 'inherit',
+                    }}
                   />
                 </div>
-              ))}
-            </div>
+              )
+            })}
           </div>
         </div>
 
@@ -228,6 +266,7 @@ export default function JobForm({ job, technicians }: JobFormProps) {
             CANCEL
           </button>
         </div>
+
       </div>
     </form>
   )
