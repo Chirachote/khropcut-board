@@ -14,6 +14,7 @@ export interface TechnicianRecord {
   color: string
   avatar: string
   sort_order: number
+  workstation?: number | null
   created_at: string
 }
 
