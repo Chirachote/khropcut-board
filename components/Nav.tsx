@@ -38,6 +38,12 @@ export default function Nav() {
       {/* Links */}
       <div className="flex items-center gap-1">
         <Link
+          href="/calendar"
+          className={`nav-link ${pathname === '/calendar' ? 'active' : ''}`}
+        >
+          <span>📅</span> CALENDAR
+        </Link>
+        <Link
           href="/dashboard"
           className={`nav-link ${pathname === '/dashboard' ? 'active' : ''}`}
         >
@@ -48,12 +54,6 @@ export default function Nav() {
           className={`nav-link ${pathname.startsWith('/jobs') ? 'active' : ''}`}
         >
           <span>📋</span> JOBS
-        </Link>
-        <Link
-          href="/calendar"
-          className={`nav-link ${pathname === '/calendar' ? 'active' : ''}`}
-        >
-          <span>📅</span> CALENDAR
         </Link>
         <Link
           href="/settings"
