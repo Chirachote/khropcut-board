@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import Nav from '@/components/Nav'
+import AppShell from '@/components/AppShell'
 import Link from 'next/link'
 import { STATUS_COLORS, JOB_STATUSES, techColorMap, type Job, type TechnicianRecord } from '@/lib/types'
 
@@ -29,9 +29,8 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   )
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080e1c' }}>
-      <Nav />
-      <main className="flex-1 p-6">
+    <AppShell>
+      <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 style={{ fontSize: '12px', color: '#00ff41', letterSpacing: '0.1em', marginBottom: '4px' }}>📋 ALL JOBS</h1>
@@ -121,8 +120,8 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }
 

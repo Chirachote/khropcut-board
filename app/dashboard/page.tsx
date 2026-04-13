@@ -1,189 +1,276 @@
 import { createClient } from '@/lib/supabase/server'
-import Nav from '@/components/Nav'
+import AppShell from '@/components/AppShell'
+import LiveClock from '@/components/LiveClock'
 import Link from 'next/link'
-import { STATUS_COLORS, type Job, type TechnicianRecord } from '@/lib/types'
+import { STATUS_COLORS, techColorMap, type Job, type TechnicianRecord } from '@/lib/types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  const [{ data: jobs }, { data: technicians }] = await Promise.all([
-    supabase.from('jobs').select('*').neq('status', 'cancelled').order('deadline', { ascending: true }),
+  const [{ data: jobs }, { data: techsData }] = await Promise.all([
+    supabase.from('jobs').select('*').neq('status', 'cancelled').order('deadline', { ascending: true, nullsFirst: false }),
     supabase.from('technicians').select('*').order('sort_order'),
   ])
 
-  const techs: TechnicianRecord[] = technicians || []
+  const techs: TechnicianRecord[] = techsData || []
   const allJobs: Job[] = jobs || []
+  const colorMap = techColorMap(techs)
 
-  const total      = allJobs.length
-  const done       = allJobs.filter(j => j.status === 'done').length
-  const inProgress = allJobs.filter(j => j.status === 'in-progress').length
-  const pending    = allJobs.filter(j => j.status === 'pending').length
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayStr = today.toISOString().slice(0, 10)
+  const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7)
+
+  const inProgress  = allJobs.filter(j => j.status === 'in-progress').length
+  const pendingCount = allJobs.filter(j => j.status === 'pending').length
+  const dueThisWeek = allJobs.filter(j => j.deadline && new Date(j.deadline) >= today && new Date(j.deadline) <= weekEnd && j.status !== 'done').length
+  const teamActive  = techs.filter(t => allJobs.some(j => j.technician === t.name && j.status === 'in-progress')).length
+
+  // Today's jobs: jobs where any draft date == today
+  const todaysJobs = allJobs.filter(j => {
+    const d = j.current_draft || 1
+    const prefix = `d${d}`
+    return (
+      j[`${prefix}_work` as keyof Job] === todayStr ||
+      j[`${prefix}_send` as keyof Job] === todayStr ||
+      j[`${prefix}_review` as keyof Job] === todayStr ||
+      j.deadline === todayStr
+    )
+  })
+
+  // Upcoming: next 6 jobs by deadline
+  const upcoming = allJobs
+    .filter(j => j.deadline && j.status !== 'done')
+    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+    .slice(0, 6)
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080e1c' }}>
-      <Nav />
+    <AppShell>
+      <div style={{ padding: '24px', maxWidth: '1200px' }}>
 
-      <main className="flex-1 p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        {/* ── Top bar ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: '28px',
+          paddingBottom: '18px',
+          borderBottom: '1px solid rgba(0,170,255,0.15)',
+        }}>
           <div>
-            <h1 style={{ fontSize: '12px', color: '#00ff41', letterSpacing: '0.1em', marginBottom: '4px' }}>
-              🗺️ STUDIO MAP
-            </h1>
-            <div style={{ fontSize: '7px', color: '#6b7db3' }}>REAL-TIME WORKSTATION STATUS</div>
+            <div style={{ fontSize: '13px', color: '#00aaff', letterSpacing: '0.1em', marginBottom: '4px' }}>
+              ⬡ COMMAND CENTER
+            </div>
+            <div style={{ fontSize: '6px', color: '#3a4a6b', letterSpacing: '0.2em' }}>
+              KHROPCUT STUDIO · REAL-TIME OVERVIEW
+            </div>
           </div>
-          <div className="flex gap-4">
-            {[
-              { label: 'TOTAL',  value: total,      color: '#e0e8ff' },
-              { label: 'ACTIVE', value: inProgress, color: '#00aaff' },
-              { label: 'QUEUE',  value: pending,    color: '#ffd700' },
-              { label: 'DONE',   value: done,       color: '#00ff41' },
-            ].map(s => (
-              <div key={s.label} className="pixel-border text-center" style={{ background: '#0d1225', padding: '8px 14px', minWidth: '60px' }}>
-                <div style={{ fontSize: '16px', color: s.color, fontWeight: 'bold' }}>{s.value}</div>
-                <div style={{ fontSize: '6px', color: '#6b7db3', letterSpacing: '0.1em', marginTop: '2px' }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
+          <LiveClock />
         </div>
 
-        {/* Studio floor */}
-        <div
-          className="relative p-6"
-          style={{
-            border: '2px solid #2d3a6b',
-            background: 'linear-gradient(135deg, #080e1c 0%, #0d1530 100%)',
-            backgroundImage: 'linear-gradient(rgba(45,58,107,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(45,58,107,0.15) 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        >
-          <div style={{ fontSize: '7px', color: '#2d3a6b', letterSpacing: '0.15em', marginBottom: '20px' }}>
-            📡 FLOOR PLAN — KHROPCUT STUDIO
-          </div>
-
-          {techs.length === 0 ? (
-            <div style={{ fontSize: '8px', color: '#6b7db3', textAlign: 'center', padding: '40px' }}>
-              No staff yet —{' '}
-              <Link href="/settings" style={{ color: '#00aaff' }}>add team members in Settings</Link>
-            </div>
-          ) : (
-            <div
-              className="grid gap-5"
-              style={{ gridTemplateColumns: `repeat(${Math.min(techs.length, 3)}, 1fr)` }}
-            >
-              {techs.map(tech => {
-                const techJobs = allJobs.filter(j => j.technician === tech.name)
-                const { color, avatar } = tech
-                const activeJob = techJobs.find(j => j.status === 'in-progress')
-                const isIdle = techJobs.length === 0 || techJobs.every(j => j.status === 'done')
-
-                return (
-                  <div
-                    key={tech.id}
-                    style={{
-                      background: '#0a1022',
-                      border: `2px solid ${color}40`,
-                      boxShadow: `0 0 12px ${color}15`,
-                      padding: '16px',
-                    }}
-                  >
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span style={{ fontSize: '18px' }}>{avatar}</span>
-                        <div>
-                          <div style={{ fontSize: '10px', color, letterSpacing: '0.05em' }}>{tech.name}</div>
-                          <div style={{ fontSize: '6px', color: '#6b7db3' }}>
-                            {techJobs.length} JOB{techJobs.length !== 1 ? 'S' : ''}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{
-                        width: '10px', height: '10px', borderRadius: '50%',
-                        background: isIdle ? '#6b7db3' : activeJob ? '#00ff41' : '#ffd700',
-                        boxShadow: isIdle ? 'none' : `0 0 8px ${activeJob ? '#00ff41' : '#ffd700'}`,
-                      }} />
-                    </div>
-
-                    {/* Monitor */}
-                    <div style={{
-                      background: '#050810',
-                      border: `1px solid ${color}30`,
-                      padding: '8px',
-                      minHeight: '80px',
-                      position: 'relative',
-                      overflow: 'hidden',
-                    }}>
-                      <div style={{
-                        position: 'absolute', inset: 0,
-                        background: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px)',
-                        pointerEvents: 'none',
-                      }} />
-                      {techJobs.length === 0 ? (
-                        <div style={{ fontSize: '7px', color: '#2d3a6b', textAlign: 'center', paddingTop: '18px' }}>— IDLE —</div>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {techJobs.slice(0, 3).map(job => {
-                            const sc = STATUS_COLORS[job.status]
-                            return (
-                              <Link key={job.id} href={`/jobs/${job.id}`} style={{ textDecoration: 'none' }}>
-                                <div style={{ background: sc.bg, border: `1px solid ${sc.border}40`, padding: '5px 7px', cursor: 'pointer' }}>
-                                  <div style={{ fontSize: '7px', color: sc.color, marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {job.title}
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span style={{ fontSize: '6px', color: '#6b7db3' }}>{job.client}</span>
-                                    {job.deadline && (
-                                      <span style={{ fontSize: '6px', color: isOverdue(job.deadline) ? '#ff2d55' : '#6b7db3' }}>
-                                        {formatDeadline(job.deadline)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </Link>
-                            )
-                          })}
-                          {techJobs.length > 3 && (
-                            <div style={{ fontSize: '6px', color: '#6b7db3', textAlign: 'right' }}>+{techJobs.length - 3} more...</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Keyboard deco */}
-                    <div className="flex justify-center mt-2 gap-1">
-                      {Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} style={{ width: '8px', height: '5px', background: '#0d1530', border: `1px solid ${color}20`, borderRadius: '1px' }} />
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Legend */}
-        <div className="flex gap-4 mt-4 flex-wrap">
+        {/* ── Metric cards ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '28px' }}>
           {[
-            { label: 'IN PROGRESS', color: '#00ff41' },
-            { label: 'PENDING',     color: '#ffd700' },
-            { label: 'REVIEW',      color: '#ff6b35' },
-            { label: 'IDLE',        color: '#6b7db3' },
-          ].map(l => (
-            <div key={l.label} className="flex items-center gap-2">
-              <div style={{ width: '8px', height: '8px', background: l.color, boxShadow: `0 0 4px ${l.color}` }} />
-              <span style={{ fontSize: '7px', color: '#6b7db3' }}>{l.label}</span>
+            { label: 'IN PROGRESS',  value: inProgress,   color: '#00aaff', icon: '▶' },
+            { label: 'QUEUE',        value: pendingCount,  color: '#ffd700', icon: '◌' },
+            { label: 'DUE THIS WEEK',value: dueThisWeek,  color: '#ff6b35', icon: '⏱' },
+            { label: 'TEAM ACTIVE',  value: teamActive,   color: '#00ff41', icon: '◉' },
+          ].map(m => (
+            <div key={m.label} style={{
+              background: '#0a1022',
+              border: `1px solid ${m.color}30`,
+              padding: '16px 18px',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+                background: m.color, opacity: 0.5,
+              }} />
+              <div style={{ fontSize: '28px', color: m.color, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                {m.value}
+              </div>
+              <div style={{ fontSize: '6px', color: '#3a4a6b', letterSpacing: '0.15em', marginTop: '6px' }}>
+                {m.icon} {m.label}
+              </div>
             </div>
           ))}
         </div>
-      </main>
-    </div>
+
+        {/* ── Main content ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+
+          {/* Today's Jobs */}
+          <div style={{ background: '#0a1022', border: '1px solid rgba(0,170,255,0.2)' }}>
+            <div style={{
+              padding: '12px 16px', borderBottom: '1px solid rgba(0,170,255,0.12)',
+              fontSize: '7px', color: '#00aaff', letterSpacing: '0.15em',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span>◈ TODAY&apos;S SCHEDULE</span>
+              <span style={{ color: '#3a4a6b', fontSize: '6px' }}>{todaysJobs.length} ITEMS</span>
+            </div>
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '160px' }}>
+              {todaysJobs.length === 0 ? (
+                <div style={{ fontSize: '7px', color: '#3a4a6b', textAlign: 'center', paddingTop: '32px' }}>
+                  — NO SCHEDULED ITEMS TODAY —
+                </div>
+              ) : todaysJobs.map(job => {
+                const sc = STATUS_COLORS[job.status]
+                const tc = colorMap[job.technician] || '#6b7db3'
+                const draft = job.current_draft || 1
+                const draftColors = ['#00aaff', '#b06bff', '#ff6b35']
+                const dc = draftColors[(draft - 1) % 3]
+                return (
+                  <Link key={job.id} href={`/jobs/${job.id}`} style={{ textDecoration: 'none' }}>
+                    <div style={{
+                      background: '#070d1a', border: `1px solid rgba(0,170,255,0.1)`,
+                      borderLeft: `3px solid ${dc}`,
+                      padding: '9px 12px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      gap: '8px',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '8px', color: '#e0e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {job.title}
+                        </div>
+                        <div style={{ fontSize: '6px', color: tc, marginTop: '2px' }}>{job.technician}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '6px', color: dc, border: `1px solid ${dc}40`, padding: '2px 5px' }}>D{draft}</span>
+                        <span className="status-badge" style={{ color: sc.color, borderColor: sc.border, background: sc.bg, fontSize: '6px' }}>
+                          {job.status.replace('-', ' ')}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Upcoming Deadlines */}
+          <div style={{ background: '#0a1022', border: '1px solid rgba(0,170,255,0.2)' }}>
+            <div style={{
+              padding: '12px 16px', borderBottom: '1px solid rgba(0,170,255,0.12)',
+              fontSize: '7px', color: '#00aaff', letterSpacing: '0.15em',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span>⏱ UPCOMING DEADLINES</span>
+              <Link href="/calendar" style={{ fontSize: '6px', color: '#3a4a6b', textDecoration: 'none' }}>VIEW CALENDAR →</Link>
+            </div>
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: '160px' }}>
+              {upcoming.length === 0 ? (
+                <div style={{ fontSize: '7px', color: '#3a4a6b', textAlign: 'center', paddingTop: '32px' }}>
+                  — NO UPCOMING DEADLINES —
+                </div>
+              ) : upcoming.map(job => {
+                const sc = STATUS_COLORS[job.status]
+                const tc = colorMap[job.technician] || '#6b7db3'
+                const isOverdue = new Date(job.deadline!) < today
+                return (
+                  <Link key={job.id} href={`/jobs/${job.id}`} style={{ textDecoration: 'none' }}>
+                    <div style={{
+                      background: '#070d1a',
+                      border: `1px solid rgba(0,170,255,0.08)`,
+                      padding: '8px 12px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '7px', color: '#e0e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {job.title}
+                        </div>
+                        <div style={{ fontSize: '6px', color: tc }}>{job.technician} · {job.client}</div>
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                        <div style={{ fontSize: '8px', color: isOverdue ? '#ff2d55' : '#ffd700' }}>
+                          {isOverdue && '⚠ '}{formatDate(job.deadline!)}
+                        </div>
+                        <div style={{ fontSize: '6px', color: sc.color }}>{job.status.replace('-',' ')}</div>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Team Status ── */}
+        <div style={{ background: '#0a1022', border: '1px solid rgba(0,170,255,0.2)' }}>
+          <div style={{
+            padding: '12px 16px', borderBottom: '1px solid rgba(0,170,255,0.12)',
+            fontSize: '7px', color: '#00aaff', letterSpacing: '0.15em',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span>◉ TEAM STATUS</span>
+            <Link href="/team" style={{ fontSize: '6px', color: '#3a4a6b', textDecoration: 'none' }}>TEAM ROOM →</Link>
+          </div>
+          <div style={{ padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+            {techs.length === 0 ? (
+              <div style={{ fontSize: '7px', color: '#3a4a6b', gridColumn: '1/-1', textAlign: 'center', padding: '24px' }}>
+                No team members yet —{' '}
+                <Link href="/settings" style={{ color: '#00aaff' }}>add in Settings</Link>
+              </div>
+            ) : techs.map(tech => {
+              const techJobs = allJobs.filter(j => j.technician === tech.name && j.status !== 'done')
+              const activeJob = techJobs.find(j => j.status === 'in-progress')
+              const isActive = !!activeJob
+              const draft = activeJob?.current_draft || 1
+              const draftColors = ['#00aaff', '#b06bff', '#ff6b35']
+              const dc = draftColors[(draft - 1) % 3]
+
+              return (
+                <div key={tech.id} style={{
+                  background: '#070d1a',
+                  border: `1px solid ${tech.color}30`,
+                  padding: '12px 14px',
+                  position: 'relative',
+                }}>
+                  {/* status dot */}
+                  <div style={{
+                    position: 'absolute', top: '12px', right: '12px',
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: isActive ? '#00ff41' : techJobs.length > 0 ? '#ffd700' : '#3a4a6b',
+                    boxShadow: isActive ? '0 0 6px #00ff41' : 'none',
+                  }} />
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '18px' }}>{tech.avatar}</span>
+                    <div>
+                      <div style={{ fontSize: '8px', color: tech.color }}>{tech.name}</div>
+                      <div style={{ fontSize: '6px', color: '#3a4a6b' }}>
+                        {techJobs.length} ACTIVE JOB{techJobs.length !== 1 ? 'S' : ''}
+                      </div>
+                    </div>
+                  </div>
+
+                  {activeJob ? (
+                    <div style={{ background: '#0a1022', padding: '7px 9px', borderLeft: `2px solid ${dc}` }}>
+                      <div style={{ fontSize: '7px', color: '#e0e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {activeJob.title}
+                      </div>
+                      <div style={{ fontSize: '6px', color: dc, marginTop: '2px' }}>D{draft} · {activeJob.status.replace('-',' ')}</div>
+                    </div>
+                  ) : techJobs.length > 0 ? (
+                    <div style={{ background: '#0a1022', padding: '7px 9px', borderLeft: '2px solid #ffd700' }}>
+                      <div style={{ fontSize: '7px', color: '#ffd700' }}>{techJobs.length} IN QUEUE</div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#0a1022', padding: '7px 9px' }}>
+                      <div style={{ fontSize: '7px', color: '#3a4a6b' }}>— AVAILABLE —</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+      </div>
+    </AppShell>
   )
 }
 
-function isOverdue(deadline: string) { return new Date(deadline) < new Date() }
-function formatDeadline(deadline: string) {
-  const d = new Date(deadline)
-  return `${d.getDate()}/${d.getMonth() + 1}`
+function formatDate(str: string) {
+  const d = new Date(str)
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
 }

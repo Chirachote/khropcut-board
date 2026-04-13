@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import Nav from '@/components/Nav'
+import AppShell from '@/components/AppShell'
 import JobForm from '../JobForm'
 import { type TechnicianRecord } from '@/lib/types'
 
@@ -9,9 +9,8 @@ export default async function NewJobPage() {
   const technicians: TechnicianRecord[] = data || []
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080e1c' }}>
-      <Nav />
-      <main className="flex-1 p-6">
+    <AppShell>
+      <div className="p-6">
         <div className="max-w-lg mx-auto">
           <div className="mb-6">
             <h1 style={{ fontSize: '12px', color: '#00ff41', letterSpacing: '0.1em', marginBottom: '4px' }}>
@@ -21,7 +20,7 @@ export default async function NewJobPage() {
           </div>
           <JobForm technicians={technicians} />
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

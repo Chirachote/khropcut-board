@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Nav from '@/components/Nav'
+import AppShell from '@/components/AppShell'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_COLORS, techColorMap, type Job, type TechnicianRecord } from '@/lib/types'
@@ -61,10 +61,8 @@ export default function CalendarPage() {
   const selectedJobs = selected ? (jobsByDate[selected] || []) : []
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080e1c' }}>
-      <Nav />
-
-      <main className="flex-1 p-6">
+    <AppShell>
+      <div className="p-6">
         <div className="flex gap-6">
           {/* Calendar */}
           <div className="flex-1">
@@ -254,8 +252,8 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }
 

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import Nav from '@/components/Nav'
+import AppShell from '@/components/AppShell'
 import JobForm from '../JobForm'
 import DeleteButton from './DeleteButton'
 import { STATUS_COLORS, type Job, type TechnicianRecord } from '@/lib/types'
@@ -21,9 +21,8 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
   const tc = technicians.find(t => t.name === job.technician)?.color || '#6b7db3'
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#080e1c' }}>
-      <Nav />
-      <main className="flex-1 p-6">
+    <AppShell>
+      <div className="p-6">
         <div className="max-w-lg mx-auto">
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -44,7 +43,7 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
 
           <JobForm job={job as Job} technicians={technicians} />
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }
