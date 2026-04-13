@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import AppShell from '@/components/AppShell'
+import PixelCharacter from '@/components/PixelCharacter'
 import Link from 'next/link'
-import { STATUS_COLORS, techColorMap, type Job, type TechnicianRecord } from '@/lib/types'
+import { STATUS_COLORS, type Job, type TechnicianRecord } from '@/lib/types'
 
 export default async function TeamPage() {
   const supabase = await createClient()
@@ -33,10 +34,10 @@ export default async function TeamPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-            {techs.map(tech => {
+            {techs.map((tech, idx) => {
               const techJobs = allJobs.filter(j => j.technician === tech.name)
               const active    = techJobs.filter(j => j.status === 'in-progress')
-              const pending   = techJobs.filter(j => j.status === 'pending')
+              const pending   = techJobs.filter(j => j.status === 'pending' || j.status === 'queued')
               const review    = techJobs.filter(j => j.status === 'review')
               const done      = techJobs.filter(j => j.status === 'done')
               const isActive  = active.length > 0
@@ -47,18 +48,26 @@ export default async function TeamPage() {
                   border: `1px solid ${tech.color}30`,
                   overflow: 'hidden',
                 }}>
-                  {/* Header */}
+                  {/* Header with pixel art character */}
                   <div style={{
-                    padding: '14px 16px',
+                    padding: '16px',
                     borderBottom: `1px solid ${tech.color}20`,
                     background: `${tech.color}08`,
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '22px' }}>{tech.avatar}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{
+                        padding: '4px',
+                        background: `${tech.color}15`,
+                        border: `1px solid ${tech.color}40`,
+                        imageRendering: 'pixelated',
+                        flexShrink: 0,
+                      }}>
+                        <PixelCharacter index={idx} color={tech.color} size={4} />
+                      </div>
                       <div>
-                        <div style={{ fontSize: '10px', color: tech.color, letterSpacing: '0.06em' }}>{tech.name}</div>
-                        <div style={{ fontSize: '6px', color: '#3a4a6b', marginTop: '2px' }}>
+                        <div style={{ fontSize: '11px', color: tech.color, letterSpacing: '0.06em' }}>{tech.name}</div>
+                        <div style={{ fontSize: '6px', color: '#3a4a6b', marginTop: '3px' }}>
                           {techJobs.length} TOTAL JOB{techJobs.length !== 1 ? 'S' : ''}
                         </div>
                       </div>
