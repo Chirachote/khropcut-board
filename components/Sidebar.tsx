@@ -8,8 +8,8 @@ import { useState } from 'react'
 const NAV = [
   { href: '/dashboard', icon: '⬡', label: 'COMMAND CENTER',    exact: true  },
   { href: '/jobs',      icon: '▦', label: 'PRODUCTION BOARD',  exact: false },
+  { href: '/calendar',  icon: '◫', label: 'CALENDAR',          exact: true  },
   { href: '/team',      icon: '◉', label: 'TEAM ROOM',         exact: true  },
-  { href: '/deals',     icon: '◇', label: 'DEAL ROOM',         exact: true  },
   { href: '/inbox',     icon: '◎', label: 'INBOX',             exact: true  },
 ]
 
