@@ -1,13 +1,11 @@
 export type JobStatus = 'pending' | 'in-progress' | 'review' | 'done' | 'cancelled'
 
 export type JobType =
-  | 'Video Edit'
-  | 'Motion Graphics'
-  | 'Color Grade'
-  | 'Sound Mix'
-  | 'Thumbnail'
-  | 'Short Form'
-  | 'Live Stream'
+  | 'Short Clip'
+  | 'Motion Graphic'
+  | 'Gen Pic'
+  | 'Tutor'
+  | 'Clip Pitching'
   | 'Other'
 
 export interface TechnicianRecord {
@@ -27,14 +25,33 @@ export interface Job {
   deadline: string | null
   client: string
   status: JobStatus
+  current_draft: number
+  // Draft 1
+  d1_work: string | null
+  d1_send: string | null
+  d1_review: string | null
+  // Draft 2
+  d2_work: string | null
+  d2_send: string | null
+  d2_review: string | null
+  // Draft 3
+  d3_work: string | null
+  d3_send: string | null
+  d3_review: string | null
   created_at: string
   updated_at: string
 }
 
 export const JOB_TYPES: JobType[] = [
-  'Video Edit', 'Motion Graphics', 'Color Grade',
-  'Sound Mix', 'Thumbnail', 'Short Form', 'Live Stream', 'Other'
+  'Short Clip', 'Motion Graphic', 'Gen Pic', 'Tutor', 'Clip Pitching', 'Other'
 ]
+
+// Draft label helper
+export const DRAFT_LABELS = [
+  { key: 'd1', label: 'DRAFT 1', color: '#00aaff' },
+  { key: 'd2', label: 'DRAFT 2', color: '#b06bff' },
+  { key: 'd3', label: 'DRAFT 3', color: '#ff6b35' },
+] as const
 
 export const JOB_STATUSES: { value: JobStatus; label: string }[] = [
   { value: 'pending', label: 'PENDING' },

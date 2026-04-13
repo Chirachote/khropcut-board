@@ -63,24 +63,30 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             <thead>
               <tr>
                 <th>JOB NAME</th><th>TYPE</th><th>CLIENT</th>
-                <th>STAFF</th><th>DEADLINE</th><th>STATUS</th><th></th>
+                <th>STAFF</th><th>DRAFT</th><th>NEXT DATE</th><th>STATUS</th><th></th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: '#6b7db3', padding: '40px', fontSize: '8px' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', color: '#6b7db3', padding: '40px', fontSize: '8px' }}>
                     — NO JOBS FOUND —
                   </td>
                 </tr>
               ) : filtered.map((job: Job) => {
                 const sc = STATUS_COLORS[job.status]
                 const tc = colorMap[job.technician] || '#6b7db3'
-                const overdue = job.deadline && new Date(job.deadline) < new Date() && job.status !== 'done'
+                const draft = job.current_draft || 1
+                const draftColors = ['#00aaff', '#b06bff', '#ff6b35']
+                const draftColor = draftColors[(draft - 1) % 3]
+                // Next upcoming date for this draft
+                const dKey = `d${draft}` as 'd1' | 'd2' | 'd3'
+                const nextDate = job[`${dKey}_work`] || job[`${dKey}_send`] || job[`${dKey}_review`] || job.deadline
+                const overdue = nextDate && new Date(nextDate) < new Date() && job.status !== 'done'
                 return (
                   <tr key={job.id}>
                     <td>
-                      <div style={{ fontSize: '8px', color: '#e0e8ff', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: '8px', color: '#e0e8ff', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {job.title}
                       </div>
                     </td>
@@ -88,9 +94,14 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                     <td><span style={{ fontSize: '7px', color: '#e0e8ff' }}>{job.client}</span></td>
                     <td><span style={{ fontSize: '8px', color: tc }}>{job.technician}</span></td>
                     <td>
-                      {job.deadline ? (
+                      <span style={{ fontSize: '7px', color: draftColor, border: `1px solid ${draftColor}50`, padding: '2px 6px' }}>
+                        D{draft}
+                      </span>
+                    </td>
+                    <td>
+                      {nextDate ? (
                         <span style={{ fontSize: '7px', color: overdue ? '#ff2d55' : '#e0e8ff' }}>
-                          {overdue && '⚠ '}{formatDate(job.deadline)}
+                          {overdue && '⚠ '}{formatDate(nextDate)}
                         </span>
                       ) : <span style={{ fontSize: '7px', color: '#2d3a6b' }}>—</span>}
                     </td>

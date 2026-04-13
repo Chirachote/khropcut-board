@@ -1,0 +1,14 @@
+-- Migration: Add draft timeline columns to jobs table
+-- Run this in Supabase SQL Editor
+
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS current_draft INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS d1_work   DATE,
+  ADD COLUMN IF NOT EXISTS d1_send   DATE,
+  ADD COLUMN IF NOT EXISTS d1_review DATE,
+  ADD COLUMN IF NOT EXISTS d2_work   DATE,
+  ADD COLUMN IF NOT EXISTS d2_send   DATE,
+  ADD COLUMN IF NOT EXISTS d2_review DATE,
+  ADD COLUMN IF NOT EXISTS d3_work   DATE,
+  ADD COLUMN IF NOT EXISTS d3_send   DATE,
+  ADD COLUMN IF NOT EXISTS d3_review DATE;
